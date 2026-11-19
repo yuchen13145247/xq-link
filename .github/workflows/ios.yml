@@ -6,66 +6,44 @@ on:
 
 jobs:
   build:
-    runs-on: macos-13
-    timeout-minutes: 40
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
-      - name: 鎷?Pikafish 婧愮爜 + NNUE
+      - name: 工具链
         run: |
-          set -eux
-          git clone --depth 1 https://github.com/official-pikafish/Pikafish.git engine/pikafish
-          mkdir -p build
+          sudo apt-get update -qq
+          sudo apt-get install -y clang lld p7zip-full zip curl
+          which clang ld64.lld
+
+      - name: iOS SDK (theos)
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/theos/sdks.git /tmp/sdks
+          cd /tmp/sdks && git sparse-checkout set iPhoneOS16.5.sdk
+          ls -d /tmp/sdks/iPhoneOS16.5.sdk
+
+      - name: Pikafish 源码 + NNUE
+        run: |
+          set -x
+          git clone --depth 1 https://github.com/official-pikafish/Pikafish.git /tmp/pikafish
           URL=$(curl -s https://api.github.com/repos/official-pikafish/Pikafish/releases/latest \
-                | python3 -c "import sys,json;d=json.load(sys.stdin);print([a['browser_download_url'] for a in d.get('assets',[]) if a['name'].endswith('.nnue')][0])")
-          echo "NNUE=$URL"
-          curl -L -o build/pikafish.nnue "$URL"
-          ls -l build/pikafish.nnue
+                | python3 -c "import sys,json;d=json.load(sys.stdin);print([a['browser_download_url'] for a in d.get('assets',[]) if a['name'].endswith('.7z')][0])")
+          echo "ASSET=$URL"
+          curl -fL -o /tmp/pk.7z "$URL"
+          7z x -y /tmp/pk.7z -o/tmp/pk > /dev/null
+          find /tmp/pk -name '*.nnue' -exec ls -lh {} \;
+          N=$(find /tmp/pk -name '*.nnue' | head -1)
+          cp "$N" /tmp/pikafish.nnue
 
-      - name: 浜ゅ弶缂栬瘧 Pikafish锛坕OS arm64锛?        run: |
-          set -eux
-          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
-          mkdir -p build/obj
-          CFLAGS="-arch arm64 -isysroot $SDK -miphoneos-version-min=15.0 -std=c++17 -O3 -DNDEBUG -DNNUE_EMBEDDING_OFF -I$PWD/engine/pikafish/src"
-          for f in engine/pikafish/src/*.cpp engine/pikafish/src/nnue/*.cpp; do
-            case "$f" in
-              */main.cpp) echo "skip $f"; continue ;;   # App 鑷繁灏辨湁 main
-            esac
-            clang++ $CFLAGS -c "$f" -o "build/obj/$(basename "$f" .cpp).o"
-          done
-          clang++ $CFLAGS -c XiangqiLink/Engine/engine_shim.cpp -o build/obj/engine_shim.o
-          mkdir -p engine
-          ar rcs engine/libpikafish.a build/obj/*.o
-          ls -lh engine/libpikafish.a
-
-      - name: 鐢熸垚 Xcode 宸ョ▼
-        run: |
-          brew install xcodegen
-          xcodegen generate
-
-      - name: 缂栬瘧 App
-        run: |
-          set -eux
-          xcodebuild -project XiangqiLink.xcodeproj \
-                     -scheme XiangqiLink \
-                     -configuration Release \
-                     -sdk iphoneos \
-                     -destination 'generic/platform=iOS' \
-                     -derivedDataPath build/dd \
-                     CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
-                     build
-
-      - name: 鎵撳寘 IPA
-        run: |
-          set -eux
-          APP=$(find build/dd/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" | head -1)
-          cp build/pikafish.nnue "$APP/pikafish.nnue"
-          mkdir -p build/ipa/Payload
-          cp -R "$APP" build/ipa/Payload/
-          cd build/ipa && zip -qry ../XiangqiLink.ipa Payload
-          ls -lh ../XiangqiLink.ipa
+      - name: 交叉编译 + 打包
+        env:
+          SDK: /tmp/sdks/iPhoneOS16.5.sdk
+          PK: /tmp/pikafish
+          NNUE: /tmp/pikafish.nnue
+        run: bash build_ios.sh
 
       - uses: actions/upload-artifact@v4
         with:
           name: XiangqiLink-ipa
-          path: build/ipa/XiangqiLink.ipa
+          path: build/XiangqiLink.ipa
