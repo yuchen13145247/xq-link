@@ -35,7 +35,9 @@
     CGPoint _calFirst;
     NSString *_lastFen;
     NSString *_lastCn;
-    double _lastFrameAt;`n    int _frameCount;`n    UILabel *_frameLabel;
+    double _lastFrameAt;
+    int _frameCount;
+    UILabel *_frameLabel;
     BOOL _reading;
     BOOL _pipWanted;
 }
