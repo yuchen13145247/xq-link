@@ -1,0 +1,72 @@
+name: build-ipa
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 拉 Pikafish 源码 + NNUE
+        run: |
+          set -eux
+          git clone --depth 1 https://github.com/official-pikafish/Pikafish.git engine/pikafish
+          mkdir -p build
+          URL=$(curl -s https://api.github.com/repos/official-pikafish/Pikafish/releases/latest \
+                | python3 -c "import sys,json;d=json.load(sys.stdin);print([a['browser_download_url'] for a in d.get('assets',[]) if a['name'].endswith('.nnue')][0])")
+          echo "NNUE=$URL"
+          curl -L -o build/pikafish.nnue "$URL"
+          ls -l build/pikafish.nnue
+
+      - name: 交叉编译 Pikafish（iOS arm64）
+        run: |
+          set -eux
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          mkdir -p build/obj
+          CFLAGS="-arch arm64 -isysroot $SDK -miphoneos-version-min=15.0 -std=c++17 -O3 -DNDEBUG -DNNUE_EMBEDDING_OFF -I$PWD/engine/pikafish/src"
+          for f in engine/pikafish/src/*.cpp engine/pikafish/src/nnue/*.cpp; do
+            case "$f" in
+              */main.cpp) echo "skip $f"; continue ;;   # App 自己就有 main
+            esac
+            clang++ $CFLAGS -c "$f" -o "build/obj/$(basename "$f" .cpp).o"
+          done
+          clang++ $CFLAGS -c XiangqiLink/Engine/engine_shim.cpp -o build/obj/engine_shim.o
+          mkdir -p engine
+          ar rcs engine/libpikafish.a build/obj/*.o
+          ls -lh engine/libpikafish.a
+
+      - name: 生成 Xcode 工程
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: 编译 App
+        run: |
+          set -eux
+          xcodebuild -project XiangqiLink.xcodeproj \
+                     -scheme XiangqiLink \
+                     -configuration Release \
+                     -sdk iphoneos \
+                     -destination 'generic/platform=iOS' \
+                     -derivedDataPath build/dd \
+                     CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+                     build
+
+      - name: 打包 IPA
+        run: |
+          set -eux
+          APP=$(find build/dd/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" | head -1)
+          cp build/pikafish.nnue "$APP/pikafish.nnue"
+          mkdir -p build/ipa/Payload
+          cp -R "$APP" build/ipa/Payload/
+          cd build/ipa && zip -qry ../XiangqiLink.ipa Payload
+          ls -lh ../XiangqiLink.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: XiangqiLink-ipa
+          path: build/ipa/XiangqiLink.ipa
