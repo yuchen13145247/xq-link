@@ -10,11 +10,7 @@ typedef void *(*XQClientCreateFn)(CFAllocatorRef);
 typedef void (*XQClientScheduleFn)(void *, CFRunLoopRef, CFStringRef);
 typedef void (*XQClientDispatchFn)(void *, void *);
 
-@interface XQInjector : NSObject
-+ (instancetype)shared;
-@property (nonatomic, readonly) BOOL available;
-- (BOOL)tapX:(CGFloat)x y:(CGFloat)y;
-@end
+#import "TouchInjector.h"
 
 @implementation XQInjector {
     XQCreateEventFn _createEvent;
