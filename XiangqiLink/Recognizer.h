@@ -18,6 +18,18 @@
                 confidence:(double *)conf
                   debugDir:(NSString *)debugDir;
 
+/* 学习模板：把某个符号（如 'K'）在当前帧的某个屏幕点上采下来 */
+- (BOOL)captureTemplate:(char)symbol
+                   from:(const uint8_t *)bgra
+                  width:(int)w
+                 height:(int)h
+                 stride:(int)stride
+             screenSize:(CGSize)screen
+                     at:(CGPoint)pt;
+
+- (int)learnedCount;
+- (void)resetLearned;
+
 /* 中文着法：h2e2 -> 炮二平五（识别结果已知，可推算） */
 - (NSString *)chineseMoveForICCS:(NSString *)iccs fen:(NSString *)fen;
 
