@@ -1,0 +1,40 @@
+name: XiangqiLink
+options:
+  bundleIdPrefix: com.yg
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+    ENABLE_BITCODE: "NO"
+    ONLY_ACTIVE_ARCH: "NO"
+targets:
+  XiangqiLink:
+    type: application
+    platform: iOS
+    sources:
+      - path: XiangqiLink
+        excludes:
+          - "pikafish.nnue"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yg.xiangqilink
+        INFOPLIST_FILE: XiangqiLink/Info.plist
+        OTHER_LDFLAGS:
+          - "-lc++"
+          - "-framework"
+          - "IOKit"
+          - "-framework"
+          - "UIKit"
+        HEADER_SEARCH_PATHS:
+          - "$(SRCROOT)/engine/pikafish/src"
+        LIBRARY_SEARCH_PATHS:
+          - "$(SRCROOT)/engine"
+        OTHER_CPLUSPLUSFLAGS:
+          - "-std=c++17"
+    dependencies:
+      - framework: engine/libpikafish.a
+        embed: false
+        link: true
