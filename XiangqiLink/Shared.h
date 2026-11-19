@@ -1,10 +1,9 @@
 #import <Foundation/Foundation.h>
-#import <Accelerate/Accelerate.h>
 
 #define XQ_NOTIF_NAME  "com.yg.xiangqilink.frame"
 #define XQ_FRAME_NAME  "frame.bin"
-#define XQ_CAL_NAME    "cal.plist"
 #define XQ_FRAME_MAGIC 0x52465158u   /* 'XQFR' */
+#define XQ_TCP_PORT    51234
 
 typedef struct {
     uint32_t magic;
@@ -14,9 +13,18 @@ typedef struct {
     double   timestamp;
 } XQFrameHeader;
 
-/* 主 App 与广播扩展共享的目录；两边都能读写 */
+/* ---- 跨进程取帧：本地 TCP（沙盒不拦） ---- */
+
+/* 主 App：起一个 127.0.0.1:51234 监听，收到帧就更新内存里的最新帧 */
+void XQStartFrameServer(void);
+/* 主 App：取最新一帧（malloc，调用方 free） */
+BOOL XQTakeLatestFrame(void **outPtr, int *w, int *h, int *stride, double *ts);
+
+/* 扩展：把帧发给主 App；失败返回 NO */
+BOOL XQSendFrameTCP(const void *bgra, int w, int h, int stride);
+
+/* ---- 兜底：共享文件（同沙盒时可用） ---- */
 NSString *XQSharedDir(void);
 BOOL      XQWriteFrame(const void *bgra, int w, int h, int stride);
-/* 返回 malloc 的缓冲区，调用方 free */
 BOOL      XQReadFrame(void **outPtr, int *w, int *h, int *stride, double *ts);
 void      XQPostFrameNotification(void);
