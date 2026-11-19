@@ -35,7 +35,7 @@
     CGPoint _calFirst;
     NSString *_lastFen;
     NSString *_lastCn;
-    double _lastFrameAt;
+    double _lastFrameAt;`n    int _frameCount;`n    UILabel *_frameLabel;
     BOOL _reading;
     BOOL _pipWanted;
 }
@@ -69,6 +69,11 @@
     [NSTimer scheduledTimerWithTimeInterval:1.0 repeats:YES block:^(NSTimer *t) {
         __strong typeof(weakSelf) s = weakSelf;
         s->_statusLabel.text = [XQEngine shared].ready ? @"引擎：就绪" : @"引擎：启动中…";
+        if (s->_reading) {
+            double age = s->_lastFrameAt > 0 ? ([[NSDate date] timeIntervalSince1970] - s->_lastFrameAt) : -1;
+            if (age < 0) s->_frameLabel.text = @"帧：0（还没收到画面）";
+            else s->_frameLabel.text = [NSString stringWithFormat:@"帧：%d 个   最近 %.1fs 前", s->_frameCount, age];
+        }
     }];
 
     CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(),
@@ -134,7 +139,11 @@ static void XQFrameNotifyCB(CFNotificationCenterRef center, void *observer, CFNo
     y += 26;
     _readLabel = [self labelWithFrame:CGRectMake(16, y, W - 32, 22) size:13 bold:NO];
     _readLabel.text = @"读屏：未开启";
-    y += 30;
+    y += 24;
+    _frameLabel = [self labelWithFrame:CGRectMake(16, y, W - 32, 18) size:11 bold:NO];
+    _frameLabel.textColor = [UIColor systemOrangeColor];
+    _frameLabel.text = @"帧：0";
+    y += 24;
 
     _fenView = [[UITextView alloc] initWithFrame:CGRectMake(16, y, W - 32, 68)];
     _fenView.font = [UIFont monospacedSystemFontOfSize:10 weight:UIFontWeightRegular];
@@ -189,11 +198,13 @@ static void XQFrameNotifyCB(CFNotificationCenterRef center, void *observer, CFNo
     _hintLabel.text = @"顺序：标定 → 开始广播 → 切到对面下棋，悬浮窗会一直显示最优着法。";
     y += 44;
 
-    _picker = [[RPSystemBroadcastPickerView alloc] initWithFrame:CGRectMake(0, 0, 44, 44)];
+    /* 系统广播选择器：必须看得见、由用户直接点，程序模拟点击不可靠 */
+    _picker = [[RPSystemBroadcastPickerView alloc] initWithFrame:CGRectMake(16, y, W - 32, 56)];
     _picker.preferredExtension = @"com.yg.xiangqilink.broadcast";
     _picker.showsMicrophoneButton = NO;
-    _picker.hidden = YES;
     [self.view addSubview:_picker];
+    _picker.backgroundColor = [UIColor secondarySystemBackgroundColor];
+    _picker.layer.cornerRadius = 10;
 }
 
 - (UILabel *)labelWithFrame:(CGRect)f size:(CGFloat)s bold:(BOOL)b {
@@ -221,14 +232,21 @@ static void XQFrameNotifyCB(CFNotificationCenterRef center, void *observer, CFNo
 
 - (void)onStartRead {
     _reading = YES;
-    _readLabel.text = @"读屏：等待广播开始…";
-    for (UIView *v in _picker.subviews)
-        if ([v isKindOfClass:[UIButton class]]) {
-            [(UIButton *)v sendActionsForControlEvents:UIControlEventTouchUpInside];
-            break;
-        }
-}
+    _frameCount = 0;
+    _lastFrameAt = 0;
+    _readLabel.text = @"读屏：请点下面那个广播按钮 → 选『象棋连线读屏』→ 开始直播";
+    _frameLabel.text = @"帧：0（还没收到画面）";
+    [self startKeepAlive];
 
+    /* 3 秒还没帧就给排查提示 */
+    __weak typeof(self) weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        __strong typeof(weakSelf) s = weakSelf;
+        if (s && s->_frameCount == 0) {
+            s->_readLabel.text = @"还收不到画面：广播没起来（面板里要选『象棋连线读屏』并点开始直播）";
+        }
+    });
+}
 #pragma mark - 同步
 
 - (void)onResync {
