@@ -57,7 +57,9 @@
 
     CVPixelBufferUnlockBaseAddress(pb, kCVPixelBufferLock_ReadOnly);
 
-    if (XQWriteFrame(dst, ow, oh, ow * 4)) XQPostFrameNotification();
+    if (!XQSendFrameTCP(dst, ow, oh, ow * 4)) {
+        if (XQWriteFrame(dst, ow, oh, ow * 4)) XQPostFrameNotification();
+    }
     free(dst);
 }
 
