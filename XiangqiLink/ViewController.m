@@ -1,6 +1,8 @@
 #import <UIKit/UIKit.h>
 #import <ReplayKit/ReplayKit.h>
 #import <AVKit/AVKit.h>
+#import <CoreMedia/CoreMedia.h>
+#import <CoreVideo/CoreVideo.h>
 #import <AVFoundation/AVFoundation.h>
 #import <UserNotifications/UserNotifications.h>
 #import "EngineBridge.h"
@@ -284,7 +286,8 @@ static void XQFrameNotifyCB(CFNotificationCenterRef center, void *observer, CFNo
 #pragma mark - PiP 悬浮窗
 
 - (void)setupPiP {
-    _pipLayer = [[AVSampleBufferDisplayLayer alloc] initWithFrame:CGRectMake(20, self.view.bounds.size.height - 120, 120, 60)];
+    _pipLayer = [[AVSampleBufferDisplayLayer alloc] init];
+    _pipLayer.frame = CGRectMake(20, self.view.bounds.size.height - 120, 120, 60);
     _pipLayer.videoGravity = AVLayerVideoGravityResizeAspect;
     [self.view.layer addSublayer:_pipLayer];
 
