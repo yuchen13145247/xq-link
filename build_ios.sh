@@ -30,7 +30,7 @@ done
 clang++ "${CPP[@]}" -c XiangqiLink/Engine/engine_shim.cpp -o "$OUT/obj/engine_shim.o"
 
 echo "==> 2/5 编译�?App"
-for f in main ViewController TouchInjector Shared Recognizer; do
+for f in main ViewController TouchInjector Shared Recognizer Tracker; do
   clang "${OBJC[@]}" -c "XiangqiLink/$f.m" -o "$OUT/obj/app_$f.o"
 done
 clang++ "${CPP[@]}" -fobjc-arc -c XiangqiLink/EngineBridge.mm -o "$OUT/obj/EngineBridge.o"
