@@ -11,32 +11,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 工具链
+      - name: toolchain
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y clang lld p7zip-full zip curl
           which clang ld64.lld
 
-      - name: iOS SDK (theos)
+      - name: ios-sdk
         run: |
           git clone --depth 1 --filter=blob:none --sparse https://github.com/theos/sdks.git /tmp/sdks
           cd /tmp/sdks && git sparse-checkout set iPhoneOS16.5.sdk
           ls -d /tmp/sdks/iPhoneOS16.5.sdk
 
-      - name: Pikafish 源码 + NNUE
+      - name: pikafish
         run: |
           set -x
           git clone --depth 1 https://github.com/official-pikafish/Pikafish.git /tmp/pikafish
-          URL=$(curl -s https://api.github.com/repos/official-pikafish/Pikafish/releases/latest \
-                | python3 -c "import sys,json;d=json.load(sys.stdin);print([a['browser_download_url'] for a in d.get('assets',[]) if a['name'].endswith('.7z')][0])")
-          echo "ASSET=$URL"
-          curl -fL -o /tmp/pk.7z "$URL"
+          URL="https://github.com/official-pikafish/Pikafish/releases/download/Pikafish-2026-09-06/Pikafish.2026-09-06.7z"
+          if ! curl -fL -o /tmp/pk.7z "$URL"; then
+            echo "pinned failed, fallback to api"
+            URL=$(curl -s https://api.github.com/repos/official-pikafish/Pikafish/releases/latest | python3 -c "import sys,json;d=json.load(sys.stdin);print([a['browser_download_url'] for a in d.get('assets',[]) if a['name'].endswith('.7z')][0])")
+            curl -fL -o /tmp/pk.7z "$URL"
+          fi
+          ls -lh /tmp/pk.7z
           7z x -y /tmp/pk.7z -o/tmp/pk > /dev/null
-          find /tmp/pk -name '*.nnue' -exec ls -lh {} \;
           N=$(find /tmp/pk -name '*.nnue' | head -1)
+          test -n "$N"
           cp "$N" /tmp/pikafish.nnue
+          ls -lh /tmp/pikafish.nnue
 
-      - name: 交叉编译 + 打包
+      - name: build
         env:
           SDK: /tmp/sdks/iPhoneOS16.5.sdk
           PK: /tmp/pikafish
