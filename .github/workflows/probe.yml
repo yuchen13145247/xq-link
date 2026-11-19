@@ -1,0 +1,33 @@
+name: probe
+on: [workflow_dispatch]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: env
+        run: |
+          set -x
+          sudo apt-get update -qq
+          sudo apt-get install -y clang lld
+          which clang; clang --version | head -1
+          which ld64.lld; ld64.lld --version 2>&1 | head -1
+      - name: sdk
+        run: |
+          set -x
+          curl -fL -o /tmp/sdk.tar.xz https://github.com/theos/sdks/raw/master/iPhoneOS16.5.sdk.tar.xz
+          ls -lh /tmp/sdk.tar.xz
+          mkdir -p $HOME/sdks && tar -xf /tmp/sdk.tar.xz -C $HOME/sdks
+          ls $HOME/sdks
+          SDK=$HOME/sdks/iPhoneOS16.5.sdk
+          ls -l $SDK/usr/lib/libobjc.tbd $SDK/usr/lib/libSystem.tbd 2>&1 | head
+          ls -l $SDK/System/Library/Frameworks/UIKit.framework/UIKit.tbd 2>&1 | head
+          ls $SDK/usr/include/c++/v1 2>&1 | head -3
+      - name: build-hello
+        run: |
+          set -x
+          SDK=$HOME/sdks/iPhoneOS16.5.sdk
+          printf '#import <UIKit/UIKit.h>\nint main(int c,char**v){@autoreleasepool{(void)NSStringFromClass([UIView class]);return 0;}}\n' > /tmp/main.m
+          clang -target arm64-apple-ios15.0 -isysroot $SDK -fobjc-arc -O2 -c /tmp/main.m -o /tmp/main.o
+          ls -l /tmp/main.o
+          ld64.lld -arch arm64 -platform_version ios 15.0 15.0 -syslibroot $SDK -o /tmp/hello /tmp/main.o -framework UIKit -framework Foundation -lobjc
+          ls -l /tmp/hello
