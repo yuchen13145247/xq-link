@@ -146,67 +146,67 @@ static void RenderGlyphBitmap(const char *utf8Glyph, const char *fontName, uint8
 
     int x0 = (int)r.origin.x, y0 = (int)r.origin.y;
     int cw = (int)r.size.width, ch = (int)r.size.height;
-    if (cw < 6 || ch < 6) return '?';
+    if (cw < 8 || ch < 8) return '?';
 
-    /* 背景：四角 3x3 中位色 */
-    int bg[3] = {0, 0, 0};
-    int samples = 0;
+    /* 1) 棋盘底色：四角取样 */
+    int bg[3] = {0, 0, 0}, nbg = 0;
     int corners[4][2] = {{0, 0}, {cw - 4, 0}, {0, ch - 4}, {cw - 4, ch - 4}};
     for (int c = 0; c < 4; c++)
         for (int dy = 0; dy < 4; dy++)
             for (int dx = 0; dx < 4; dx++) {
-                const uint8_t *p = bgra + (size_t)(y0 + corners[c][1] + dy) * stride + (size_t)(x0 + corners[c][0] + dx) * 4;
-                bg[0] += p[0]; bg[1] += p[1]; bg[2] += p[2];
-                samples++;
+                const uint8_t *p = bgra + (size_t)(y0 + corners[c][1] + dy) * stride
+                                        + (size_t)(x0 + corners[c][0] + dx) * 4;
+                bg[0] += p[0]; bg[1] += p[1]; bg[2] += p[2]; nbg++;
             }
-    if (samples == 0) return '?';
-    bg[0] /= samples; bg[1] /= samples; bg[2] /= samples;
+    if (!nbg) return '?';
+    bg[0] /= nbg; bg[1] /= nbg; bg[2] /= nbg;
 
-    uint8_t mask[32 * 32];
-    memset(mask, 0, sizeof(mask));
-    int ink = 0, red = 0, black = 0, total = 0;
+    int stepX = MAX(1, cw / 32), stepY = MAX(1, ch / 32);
 
-    int stepX = cw > 32 ? cw / 32 : 1;
-    int stepY = ch > 32 ? ch / 32 : 1;
-    int mx = 0, my = 0;
-
-    for (int y = 0; y < ch; y += stepY) {
+    /* 2) 棋子圆盘：与棋盘底色差异大的像素，用它们的平均色当“棋子颜色” */
+    long sr = 0, sg = 0, sb = 0;
+    int piece = 0, total = 0;
+    for (int y = 0; y < ch; y += stepY)
         for (int x = 0; x < cw; x += stepX) {
             const uint8_t *p = bgra + (size_t)(y0 + y) * stride + (size_t)(x0 + x) * 4;
             int b = p[0], g = p[1], rr = p[2];
-            int d0 = abs(rr - bg[0]), d1 = abs(g - bg[1]), d2 = abs(b - bg[2]);
-            int dmax = MAX(d0, MAX(d1, d2));
             total++;
-            if (dmax > 48) {
-                ink++;
-                if (mx < 32 && my < 32) mask[my * 32 + mx] = 1;
-                if (rr - g > 28 && rr - b > 28) red++;
-                int luma = (rr * 299 + g * 587 + b * 114) / 1000;
-                if (luma < 95) black++;
-            } else {
-                if (mx < 32 && my < 32) mask[my * 32 + mx] = 0;
-            }
+            int d0 = abs(rr - bg[0]), d1 = abs(g - bg[1]), d2 = abs(b - bg[2]);
+            if (MAX(d0, MAX(d1, d2)) > 40) { piece++; sr += rr; sg += g; sb += b; }
+        }
+
+    double pieceRatio = total > 0 ? (double)piece / total : 0;
+    if (detail) detail[@"piece"] = @(pieceRatio);
+    if (pieceRatio < 0.18) return 0;              /* 空位 */
+    if (pieceRatio > 0.94) return '?';            /* 整格糊 */
+
+    int pr = (int)(sr / piece), pg = (int)(sg / piece), pb = (int)(sb / piece);
+    char side = (pr - pg > 30 && pr - pb > 30) ? 'r' : 'b';
+    if (detail) detail[@"disc"] = [NSString stringWithFormat:@"%d,%d,%d", pr, pg, pb];
+
+    /* 3) 字形：与圆盘主色差异大的像素 */
+    uint8_t mask[32 * 32];
+    memset(mask, 0, sizeof(mask));
+    int mx = 0, my = 0, ink = 0;
+    for (int y = 0; y < ch; y += stepY) {
+        mx = 0;
+        for (int x = 0; x < cw; x += stepX) {
+            const uint8_t *p = bgra + (size_t)(y0 + y) * stride + (size_t)(x0 + x) * 4;
+            int b = p[0], g = p[1], rr = p[2];
+            int d0 = abs(rr - pr), d1 = abs(g - pg), d2 = abs(b - pb);
+            int isInk = MAX(d0, MAX(d1, d2)) > 55;
+            if (mx < 32 && my < 32) mask[my * 32 + mx] = isInk ? 1 : 0;
+            if (isInk) ink++;
             mx++;
         }
-        mx = 0;
         my++;
+        if (my >= 32) break;
     }
 
     double inkRatio = total > 0 ? (double)ink / total : 0;
-    if (detail) {
-        detail[@"ink"] = @(inkRatio);
-        detail[@"red"] = @(red);
-        detail[@"black"] = @(black);
-    }
-    if (inkRatio < 0.035) return 0;             /* 空位 */
-    if (inkRatio > 0.85) return '?';            /* 整格异常 */
+    if (detail) { detail[@"ink"] = @(inkRatio); detail[@"side"] = (side == 'r' ? @"红" : @"黑"); }
+    if (inkRatio < 0.035) return '?';             /* 有圆盘没字 */
 
-    char side;
-    if (red > black * 1.2) side = 'r';
-    else if (black > red * 0.6) side = 'b';
-    else side = (red > ink * 0.25) ? 'r' : 'b';
-
-    /* 归一化到 16x16（按实际墨迹 bbox） */
     int minx = 32, miny = 32, maxx = -1, maxy = -1;
     for (int y = 0; y < 32; y++)
         for (int x = 0; x < 32; x++)
@@ -229,9 +229,6 @@ static void RenderGlyphBitmap(const char *utf8Glyph, const char *fontName, uint8
             bits[gy * GRID_W + gx] = mask[py * 32 + px];
         }
 
-    int ones = 0;
-    for (int i = 0; i < GRID_W * GRID_H; i++) ones += bits[i];
-
     double best = -1;
     char bestSym = '?';
     for (int t = 0; t < _tplCount; t++) {
@@ -247,13 +244,12 @@ static void RenderGlyphBitmap(const char *utf8Glyph, const char *fontName, uint8
             if (a && b) inter++;
             if (a || b) uni++;
         }
-        double score = uni ? (double)inter / uni : 0;   /* Jaccard */
+        double score = uni ? (double)inter / uni : 0;
         if (score > best) { best = score; bestSym = s; }
     }
 
     if (detail) detail[@"score"] = @(best);
-    if (best < 0.52) return '?';
-    (void)ones;
+    if (best < 0.42) return '?';
     return bestSym;
 }
 
