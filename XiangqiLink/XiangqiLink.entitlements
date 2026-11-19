@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- TrollStore / 越狱签名时用 ldid -S 打进去 -->
+    <key>platform-application</key>
+    <true/>
+    <key>com.apple.private.security.no-sandbox</key>
+    <true/>
+    <key>get-task-allow</key>
+    <true/>
+
+    <!-- 往别的 App 注入触摸事件的关键私有权限 -->
+    <key>com.apple.private.hid.client.event-dispatch</key>
+    <true/>
+    <key>com.apple.private.hid.client.event-filter</key>
+    <true/>
+
+    <!-- 读别的 App 画面（ReplayKit 广播）备用 -->
+    <key>com.apple.private.replay-kit</key>
+    <true/>
+</dict>
+</plist>
