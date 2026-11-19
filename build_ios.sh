@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 在 Linux 上用 clang + theos 的 iOS SDK + ld64.lld 交叉编译出 iOS App 并打包 IPA
+# �?Linux 上用 clang + theos �?iOS SDK + ld64.lld 交叉编译�?iOS App 并打�?IPA
 set -euo pipefail
 
 SDK="${SDK:-/tmp/sdks/iPhoneOS16.5.sdk}"
@@ -10,7 +10,7 @@ OUT="build"
 rm -rf "$OUT"
 mkdir -p "$OUT/obj"
 
-BASE=(-target arm64-apple-ios15.0 -isysroot "$SDK" -O2 -I"$PK/src" -DNNUE_EMBEDDING_OFF)
+BASE=(-target arm64-apple-ios15.0 -isysroot "$SDK" -O3 -DNDEBUG -DIS_64BIT -I"$PK/src" -DNNUE_EMBEDDING_OFF)
 OBJC=("${BASE[@]}" -fobjc-arc)
 CPP=("${BASE[@]}" -std=c++17)
 
