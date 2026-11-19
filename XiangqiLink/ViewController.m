@@ -46,6 +46,7 @@
     self.view.backgroundColor = [UIColor systemBackgroundColor];
     self.title = @"象棋连线";
     [self buildUI];
+    XQStartFrameServer();
     [self setupPiP];
     [self startKeepAlive];
     [self setupNotifications];
@@ -90,7 +91,9 @@ static void XQFrameNotifyCB(CFNotificationCenterRef center, void *observer, CFNo
     _lastFrameAt = now;
 
     void *buf = NULL; int w = 0, h = 0, stride = 0; double ts = 0;
-    if (!XQReadFrame(&buf, &w, &h, &stride, &ts)) return;
+    if (!XQTakeLatestFrame(&buf, &w, &h, &stride, &ts)) {
+        if (!XQReadFrame(&buf, &w, &h, &stride, &ts)) return;
+    }
     if (now - ts > 2.0) { free(buf); return; }
 
     NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
