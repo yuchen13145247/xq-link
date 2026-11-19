@@ -6,12 +6,12 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-13
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
-      - name: 拉 Pikafish 源码 + NNUE
+      - name: 鎷?Pikafish 婧愮爜 + NNUE
         run: |
           set -eux
           git clone --depth 1 https://github.com/official-pikafish/Pikafish.git engine/pikafish
@@ -22,15 +22,14 @@ jobs:
           curl -L -o build/pikafish.nnue "$URL"
           ls -l build/pikafish.nnue
 
-      - name: 交叉编译 Pikafish（iOS arm64）
-        run: |
+      - name: 浜ゅ弶缂栬瘧 Pikafish锛坕OS arm64锛?        run: |
           set -eux
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
           mkdir -p build/obj
           CFLAGS="-arch arm64 -isysroot $SDK -miphoneos-version-min=15.0 -std=c++17 -O3 -DNDEBUG -DNNUE_EMBEDDING_OFF -I$PWD/engine/pikafish/src"
           for f in engine/pikafish/src/*.cpp engine/pikafish/src/nnue/*.cpp; do
             case "$f" in
-              */main.cpp) echo "skip $f"; continue ;;   # App 自己就有 main
+              */main.cpp) echo "skip $f"; continue ;;   # App 鑷繁灏辨湁 main
             esac
             clang++ $CFLAGS -c "$f" -o "build/obj/$(basename "$f" .cpp).o"
           done
@@ -39,12 +38,12 @@ jobs:
           ar rcs engine/libpikafish.a build/obj/*.o
           ls -lh engine/libpikafish.a
 
-      - name: 生成 Xcode 工程
+      - name: 鐢熸垚 Xcode 宸ョ▼
         run: |
           brew install xcodegen
           xcodegen generate
 
-      - name: 编译 App
+      - name: 缂栬瘧 App
         run: |
           set -eux
           xcodebuild -project XiangqiLink.xcodeproj \
@@ -56,7 +55,7 @@ jobs:
                      CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
                      build
 
-      - name: 打包 IPA
+      - name: 鎵撳寘 IPA
         run: |
           set -eux
           APP=$(find build/dd/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" | head -1)
