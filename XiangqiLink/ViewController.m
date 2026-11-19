@@ -362,13 +362,6 @@ static void XQFrameNotifyCB(CFNotificationCenterRef center, void *observer, CFNo
     CMSampleTimingInfo timing = { CMTimeMake(1, 30), kCMTimeZero, kCMTimeInvalid };
     CMSampleBufferRef sb = NULL;
     if (CMSampleBufferCreateReadyWithImageBuffer(kCFAllocatorDefault, pb, fmt, &timing, &sb) == noErr) {
-        CFArrayRef attachKeys = (__bridge CFArrayRef)@[ (id)kCMSampleAttachmentKey_DisplayImmediately ];
-        CFArrayRef attachVals = (__bridge CFArrayRef)@[ (id)kCFBooleanTrue ];
-        CFDictionaryRef attach = CFDictionaryCreate(kCFAllocatorDefault,
-                                                    (const void **)attachKeys, (const void **)attachVals, 1,
-                                                    &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-        CMSampleBufferSetAttachments(sb, attach);
-        CFRelease(attach);
         [_pipLayer enqueueSampleBuffer:sb];
         [_pipLayer setNeedsDisplay];
         CFRelease(sb);
