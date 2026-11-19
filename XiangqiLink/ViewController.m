@@ -7,6 +7,7 @@
 #import <UserNotifications/UserNotifications.h>
 #import "EngineBridge.h"
 #import "Recognizer.h"
+#import "Tracker.h"
 #import "Shared.h"
 
 @interface XQViewController : UIViewController
@@ -105,20 +106,19 @@ static void XQFrameNotifyCB(CFNotificationCenterRef center, void *observer, CFNo
         return;
     }
 
-    double conf = 0;
-    NSString *dir = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
-    NSString *fen = [[XQRecognizer shared] fenFromFrame:buf width:w height:h stride:stride
-                                             screenSize:[UIScreen mainScreen].bounds.size
-                                                     tl:tl br:br confidence:&conf debugDir:dir];
+    NSString *mv = nil;
+    NSString *fen = [[XQTracker shared] feedFrame:buf width:w height:h stride:stride
+                                       screenSize:[UIScreen mainScreen].bounds.size
+                                               tl:tl br:br outMove:&mv];
     free(buf);
 
     if (!fen) {
-        _readLabel.text = [NSString stringWithFormat:@"读屏：识别中… 置信 %.2f", conf];
+        _readLabel.text = [NSString stringWithFormat:@"读屏：跟踪中…（已同步 %@）",
+                           [[XQTracker shared] trackingReady] ? @"是" : @"否"];
         return;
     }
-    _readLabel.text = [NSString stringWithFormat:@"读屏：✓ 置信 %.2f", conf];
-    if ([fen isEqualToString:_lastFen]) return;
 
+    _readLabel.text = [NSString stringWithFormat:@"读屏：✓ 对面走了 %@", mv ?: @"?"];
     _lastFen = fen;
     _fenView.text = fen;
     [[XQEngine shared] goFen:fen depth:(int)_depthSlider.value];
@@ -177,6 +177,8 @@ static void XQFrameNotifyCB(CFNotificationCenterRef center, void *observer, CFNo
     y += 50;
     [self buttonWithTitle:@"③ 开启悬浮窗（PiP）" frame:CGRectMake(16, y, W - 32, 42) action:@selector(onTogglePiP)];
     y += 52;
+    [self buttonWithTitle:@"④ 重新同步（回到开局）" frame:CGRectMake(16, y, W - 32, 42) action:@selector(onResync)];
+    y += 50;
 
     _hintLabel = [self labelWithFrame:CGRectMake(16, y, W - 32, 40) size:11 bold:NO];
     _hintLabel.textColor = [UIColor secondaryLabelColor];
@@ -221,6 +223,16 @@ static void XQFrameNotifyCB(CFNotificationCenterRef center, void *observer, CFNo
             [(UIButton *)v sendActionsForControlEvents:UIControlEventTouchUpInside];
             break;
         }
+}
+
+#pragma mark - 同步
+
+- (void)onResync {
+    [[XQTracker shared] resetToInitial];
+    _lastFen = nil;
+    _readLabel.text = @"读屏：已重置，等待基准帧…";
+    _bestLabel.text = @"-";
+    _cnLabel.text = @"";
 }
 
 #pragma mark - 标定
