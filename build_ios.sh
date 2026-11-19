@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# �?Linux 上用 clang + theos �?iOS SDK + ld64.lld 交叉编译�?iOS App（含 ReplayKit 扩展）并打包 IPA
+# �?Linux 上用 clang + theos �?iOS SDK + ld64.lld 交叉编译�?iOS App（含 ReplayKit 扩展）并打包 IPA
 set -euo pipefail
 
 SDK="${SDK:-/tmp/sdks/iPhoneOS16.5.sdk}"
@@ -15,7 +15,7 @@ OBJC=("${BASE[@]}" -fobjc-arc)
 CPP=("${BASE[@]}" -std=c++17)
 FRAMEWORKS=(-framework UIKit -framework Foundation -framework CoreGraphics -framework CoreText
             -framework CoreMedia -framework CoreVideo -framework Accelerate
-            -framework ReplayKit -framework AVFoundation -framework UserNotifications)
+            -framework ReplayKit -framework AVFoundation -framework AVKit -framework UserNotifications)
 OBJNAME() { echo "$1" | sed "s|^$PK/src/||" | tr '/' '_' | sed 's/\.cpp$//'; }
 
 echo "==> 1/5 编译 Pikafish 引擎"
@@ -29,7 +29,7 @@ for f in $ENGINE_SRCS; do
 done
 clang++ "${CPP[@]}" -c XiangqiLink/Engine/engine_shim.cpp -o "$OUT/obj/engine_shim.o"
 
-echo "==> 2/5 编译�?App"
+echo "==> 2/5 编译�?App"
 for f in main ViewController TouchInjector Shared Recognizer; do
   clang "${OBJC[@]}" -c "XiangqiLink/$f.m" -o "$OUT/obj/app_$f.o"
 done
