@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# �?Linux 上用 clang + theos �?iOS SDK + ld64.lld 交叉编译�?iOS App 并打�?IPA
+# 在 Linux 上用 clang + theos 的 iOS SDK + ld64.lld 交叉编译出 iOS App 并打包 IPA
 set -euo pipefail
 
 SDK="${SDK:-/tmp/sdks/iPhoneOS16.5.sdk}"
@@ -13,11 +13,16 @@ mkdir -p "$OUT/obj"
 BASE=(-target arm64-apple-ios15.0 -isysroot "$SDK" -O3 -DNDEBUG -DIS_64BIT -I"$PK/src" -DNNUE_EMBEDDING_OFF)
 OBJC=("${BASE[@]}" -fobjc-arc)
 CPP=("${BASE[@]}" -std=c++17)
+OBJNAME() { echo "$1" | sed "s|^$PK/src/||" | tr '/' '_' | sed 's/\.cpp$//'; }
 
-echo "==> 1/4 编译 Pikafish 引擎"
-for f in "$PK"/src/*.cpp "$PK"/src/nnue/*.cpp; do
+echo "==> 1/4 编译 Pikafish 引擎（含 nnue/features 与 external/zstd）"
+ENGINE_SRCS=$(ls "$PK"/src/*.cpp "$PK"/src/nnue/*.cpp \
+                 "$PK"/src/nnue/features/*.cpp \
+                 "$PK"/src/external/common/*.cpp \
+                 "$PK"/src/external/decompress/*.cpp 2>/dev/null)
+for f in $ENGINE_SRCS; do
   case "$f" in */main.cpp) echo "   skip $f"; continue ;; esac
-  clang++ "${CPP[@]}" -c "$f" -o "$OUT/obj/$(basename "${f%.cpp}").o"
+  clang++ "${CPP[@]}" -c "$f" -o "$OUT/obj/$(OBJNAME "$f").o"
 done
 clang++ "${CPP[@]}" -c XiangqiLink/Engine/engine_shim.cpp -o "$OUT/obj/engine_shim.o"
 
