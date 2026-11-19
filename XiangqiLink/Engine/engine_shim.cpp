@@ -1,8 +1,11 @@
-// engine_shim.cpp —— 把 Pikafish(Stockfish 系) 的 UCI 循环包成 C 接口
+// engine_shim.cpp —— 把 Pikafish 的 UCI 主循环包成 C 接口
 //
-// 思路：把进程的 fd 0/1 接到了两根管道上，再起一个线程跑 Stockfish::UCI::loop()，
-// 于是"发命令 / 收输出"就是读写管道，跟引擎版本、内部 API 都无关。
-// 注意：dup2 之后本进程的 fd 1 就是引擎管道了，App 里的日志请用 NSLog（走 stderr）。
+// Pikafish(Stockfish 系) 新版入口是 Stockfish::UCIEngine：
+//     auto cli = CommandLine(argc, argv);
+//     auto uci = std::make_unique<UCIEngine>(std::move(cli));
+//     Tune::init(uci->engine_options());
+//     uci->loop();
+// 我们用管道把 fd 0/1 接管过来，于是在另一个线程里跑 loop() 就能收发 UCI 文本。
 
 #include "engine_shim.h"
 
@@ -14,15 +17,21 @@
 #include <cstdint>
 #include <string>
 #include <thread>
+#include <memory>
+#include <utility>
 #include <iostream>
 
+#include "attacks.h"
+#include "misc.h"
+#include "position.h"
+#include "tune.h"
 #include "uci.h"
 
-static int            g_in_fd   = -1;   // 我们写 -> 引擎 stdin
-static int            g_out_fd  = -1;   // 引擎 stdout -> 我们读
-static xq_line_cb     g_cb      = nullptr;
-static void          *g_ctx     = nullptr;
-static volatile int   g_started = 0;
+static int          g_in_fd   = -1;
+static int          g_out_fd  = -1;
+static xq_line_cb   g_cb      = nullptr;
+static void        *g_ctx     = nullptr;
+static volatile int g_started = 0;
 
 static void *reader_thread(void *) {
     FILE *fp = fdopen(g_out_fd, "r");
@@ -55,8 +64,7 @@ extern "C" int xq_start(const char *nnue_path, int threads, int hash_mb) {
     int in_pipe[2], out_pipe[2];
     if (::pipe(in_pipe) != 0 || ::pipe(out_pipe) != 0) return -1;
 
-    // 引擎的 stdin/stdout 换成管道两端
-    if (::dup2(in_pipe[0], STDIN_FILENO) < 0)  return -1;
+    if (::dup2(in_pipe[0], STDIN_FILENO) < 0)   return -1;
     if (::dup2(out_pipe[1], STDOUT_FILENO) < 0) return -1;
     ::close(in_pipe[0]);
     ::close(out_pipe[1]);
@@ -69,9 +77,17 @@ extern "C" int xq_start(const char *nnue_path, int threads, int hash_mb) {
     g_started = 1;
 
     std::thread([] {
-        char a0[] = "pikafish";
-        char *argv[] = { a0, nullptr };
-        Stockfish::UCI::loop(1, argv);
+        using namespace Stockfish;
+        static char a0[] = "pikafish";
+        static char *argv[] = { a0, nullptr };
+
+        std::cout << engine_info() << std::endl;
+        Attacks::init();
+
+        auto cli = CommandLine(1, argv);
+        auto uci = std::make_unique<UCIEngine>(std::move(cli));
+        Tune::init(uci->engine_options());
+        uci->loop();
     }).detach();
 
     pthread_t th;
@@ -105,15 +121,13 @@ extern "C" int xq_go(const char *fen, int depth, int movetime_ms) {
     cmd += fen;
     cmd += "\n";
 
-    if (movetime_ms > 0) {
-        char go[96];
+    char go[96];
+    if (movetime_ms > 0)
         snprintf(go, sizeof(go), "go movetime %d\n", movetime_ms);
-        cmd += go;
-    } else {
-        char go[96];
+    else
         snprintf(go, sizeof(go), "go depth %d\n", depth > 0 ? depth : 12);
-        cmd += go;
-    }
+    cmd += go;
+
     send_cmd(cmd.c_str());
     return 0;
 }
