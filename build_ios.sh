@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 在 Linux 上用 clang + theos 的 iOS SDK + ld64.lld 交叉编译出 iOS App（含 ReplayKit 扩展）并打包 IPA
+# �?Linux 上用 clang + theos �?iOS SDK + ld64.lld 交叉编译�?iOS App（含 ReplayKit 扩展）并打包 IPA
 set -euo pipefail
 
 SDK="${SDK:-/tmp/sdks/iPhoneOS16.5.sdk}"
@@ -10,7 +10,7 @@ OUT="build"
 rm -rf "$OUT"
 mkdir -p "$OUT/obj" "$OUT/extobj"
 
-BASE=(-target arm64-apple-ios15.0 -isysroot "$SDK" -O3 -DNDEBUG -DIS_64BIT -I"$PK/src" -DNNUE_EMBEDDING_OFF)
+BASE=(-target arm64-apple-ios15.0 -isysroot "$SDK" -O3 -DNDEBUG -DIS_64BIT -I"$PK/src" -IXiangqiLink -DNNUE_EMBEDDING_OFF)
 OBJC=("${BASE[@]}" -fobjc-arc)
 CPP=("${BASE[@]}" -std=c++17)
 FRAMEWORKS=(-framework UIKit -framework Foundation -framework CoreGraphics -framework CoreText
@@ -29,7 +29,7 @@ for f in $ENGINE_SRCS; do
 done
 clang++ "${CPP[@]}" -c XiangqiLink/Engine/engine_shim.cpp -o "$OUT/obj/engine_shim.o"
 
-echo "==> 2/5 编译主 App"
+echo "==> 2/5 编译�?App"
 for f in main ViewController TouchInjector Shared Recognizer; do
   clang "${OBJC[@]}" -c "XiangqiLink/$f.m" -o "$OUT/obj/app_$f.o"
 done
