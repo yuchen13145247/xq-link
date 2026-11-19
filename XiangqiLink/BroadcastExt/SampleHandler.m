@@ -41,7 +41,7 @@
         return;
     }
 
-    int ow = 480;
+    int ow = 720;
     int oh = (int)((double)h * ow / (double)w);
     if (oh < 1) oh = 1;
 
