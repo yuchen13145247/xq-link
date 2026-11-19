@@ -179,6 +179,10 @@ static void XQFrameNotifyCB(CFNotificationCenterRef center, void *observer, CFNo
     y += 52;
     [self buttonWithTitle:@"④ 重新同步（回到开局）" frame:CGRectMake(16, y, W - 32, 42) action:@selector(onResync)];
     y += 50;
+    [self buttonWithTitle:@"⑤ 全盘识别一次并同步" frame:CGRectMake(16, y, W - 32, 42) action:@selector(onFullScan)];
+    y += 50;
+    [self buttonWithTitle:@"⑥ 用上面的 FEN 同步" frame:CGRectMake(16, y, W - 32, 42) action:@selector(onSyncFEN)];
+    y += 50;
 
     _hintLabel = [self labelWithFrame:CGRectMake(16, y, W - 32, 40) size:11 bold:NO];
     _hintLabel.textColor = [UIColor secondaryLabelColor];
@@ -233,6 +237,42 @@ static void XQFrameNotifyCB(CFNotificationCenterRef center, void *observer, CFNo
     _readLabel.text = @"读屏：已重置，等待基准帧…";
     _bestLabel.text = @"-";
     _cnLabel.text = @"";
+}
+
+#pragma mark - 残局/中局同步
+
+- (void)onFullScan {
+    void *buf = NULL; int w = 0, h = 0, st = 0; double ts = 0;
+    if (!XQTakeLatestFrame(&buf, &w, &h, &st, &ts)) {
+        if (!XQReadFrame(&buf, &w, &h, &st, &ts)) { _readLabel.text = @"全盘识别：没有画面"; return; }
+    }
+    NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
+    CGPoint tl = CGPointMake([d doubleForKey:@"tlX"], [d doubleForKey:@"tlY"]);
+    CGPoint br = CGPointMake([d doubleForKey:@"brX"], [d doubleForKey:@"brY"]);
+    double conf = 0;
+    NSString *dir = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+    NSString *fen = [[XQRecognizer shared] fenFromFrame:buf width:w height:h stride:st
+                                             screenSize:[UIScreen mainScreen].bounds.size
+                                                     tl:tl br:br confidence:&conf debugDir:dir];
+    free(buf);
+    if (!fen) {
+        _readLabel.text = [NSString stringWithFormat:@"全盘识别没过（置信 %.2f），看 Documents/last_recog.json", conf];
+        return;
+    }
+    _fenView.text = fen;
+    _lastFen = fen;
+    [[XQTracker shared] resetFromFEN:fen];
+    [[XQEngine shared] goFen:fen depth:(int)_depthSlider.value];
+    _readLabel.text = @"全盘识别 ✓ 已同步，之后自动跟踪";
+}
+
+- (void)onSyncFEN {
+    NSString *fen = _fenView.text;
+    if (fen.length < 10) return;
+    [[XQTracker shared] resetFromFEN:fen];
+    _lastFen = fen;
+    [[XQEngine shared] goFen:fen depth:(int)_depthSlider.value];
+    _readLabel.text = @"已按手输 FEN 同步，之后自动跟踪";
 }
 
 #pragma mark - 标定
