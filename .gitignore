@@ -1,0 +1,7 @@
+build/
+engine/
+Pikafish/
+*.ipa
+*.xcworkspace/xcuserdata/
+DerivedData/
+.DS_Store
